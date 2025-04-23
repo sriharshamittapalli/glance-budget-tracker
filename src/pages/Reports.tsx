@@ -1,29 +1,10 @@
-
-import { useState, useEffect } from "react";
-import Layout from "@/components/layout/Layout";
-import { Expense, ExpenseCategory, CategorySpending, MonthlySpending } from "@/types/budget";
+import { useState } from "react";
+import { Bar, Line, Pie } from "recharts";
 import { useExpenseStore, useCategoryStore } from "@/api/store";
-import { formatCurrency, formatPercentage } from "@/utils/formatters";
-import {
-  Chart,
-  ChartContainer,
-  ChartLegend,
-  ChartLegendContent,
-} from "@/components/ui/chart";
-import {
-  AreaChart,
-  Area,
-  BarChart,
-  Bar,
-  PieChart,
-  Pie,
-  Cell,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-} from "recharts";
+import Layout from "@/components/layout/Layout";
+import { formatCurrency } from "@/utils/formatters";
+import { format, startOfMonth, endOfMonth, subMonths, isSameMonth } from "date-fns";
+
 import {
   Card,
   CardContent,
@@ -32,326 +13,328 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
   Tabs,
   TabsContent,
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export default function ReportsPage() {
-  const [expenses, setExpenses] = useState<Expense[]>([]);
-  const [categories, setCategories] = useState<ExpenseCategory[]>([]);
-  const [categorySpending, setCategorySpending] = useState<CategorySpending[]>([]);
-  const [monthlySpending, setMonthlySpending] = useState<MonthlySpending[]>([]);
-  const [totalSpending, setTotalSpending] = useState(0);
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [timeframe, setTimeframe] = useState("3months");
+  const [chartType, setChartType] = useState("bar");
   
   const { getAll: getAllExpenses } = useExpenseStore();
   const { getAll: getAllCategories } = useCategoryStore();
   
-  // Load initial data and calculate reports
-  useEffect(() => {
-    const expensesData = getAllExpenses();
-    const categoriesData = getAllCategories();
-    
-    setExpenses(expensesData);
-    setCategories(categoriesData);
-    
-    // Filter expenses for selected year
-    const yearExpenses = expensesData.filter(expense => {
-      const expenseDate = new Date(expense.date);
-      return expenseDate.getFullYear() === selectedYear;
-    });
-    
-    // Calculate total spending
-    const total = yearExpenses.reduce((sum, expense) => sum + expense.amount, 0);
-    setTotalSpending(total);
-    
-    // Calculate category spending
-    const catSpending: { [key: string]: number } = {};
-    yearExpenses.forEach(expense => {
-      if (!catSpending[expense.categoryId]) {
-        catSpending[expense.categoryId] = 0;
-      }
-      catSpending[expense.categoryId] += expense.amount;
-    });
-    
-    const categoryData = Object.entries(catSpending).map(([categoryId, amount]) => ({
-      categoryId,
-      amount,
-      percentage: total > 0 ? (amount / total) * 100 : 0,
-    }));
-    
-    setCategorySpending(categoryData);
-    
-    // Calculate monthly spending
-    const months = [
-      "January", "February", "March", "April", "May", "June",
-      "July", "August", "September", "October", "November", "December"
-    ];
-    
-    const monthlyData = months.map((month, index) => {
-      const amount = yearExpenses
-        .filter(expense => new Date(expense.date).getMonth() === index)
-        .reduce((sum, expense) => sum + expense.amount, 0);
-      
-      return {
-        month,
-        amount
-      };
-    });
-    
-    setMonthlySpending(monthlyData);
-  }, [selectedYear]);
+  const expenses = getAllExpenses();
+  const categories = getAllCategories();
   
-  // Find category by ID
-  const getCategoryById = (categoryId: string) => {
-    return categories.find(category => category.id === categoryId);
-  };
+  // Get current date and calculate date ranges
+  const now = new Date();
+  const currentMonth = startOfMonth(now);
   
-  // Generate chart config object for category colors
-  const chartConfig = categories.reduce((config, category) => {
-    config[category.id] = { 
-      label: category.name,
-      color: category.color.replace('bg-', '')
-    };
-    return config;
-  }, {} as Record<string, { label: string; color: string }>);
+  // Filter expenses based on selected timeframe
+  const filteredExpenses = expenses.filter(expense => {
+    const expenseDate = new Date(expense.date);
+    
+    switch (timeframe) {
+      case "1month":
+        return isSameMonth(expenseDate, now);
+      case "3months":
+        return expenseDate >= subMonths(currentMonth, 2);
+      case "6months":
+        return expenseDate >= subMonths(currentMonth, 5);
+      case "12months":
+        return expenseDate >= subMonths(currentMonth, 11);
+      default:
+        return true;
+    }
+  });
   
-  // Format category spending data for pie chart
-  const pieChartData = categorySpending.map(item => {
-    const category = getCategoryById(item.categoryId);
+  // Calculate total expenses
+  const totalExpenses = filteredExpenses.reduce(
+    (sum, expense) => sum + expense.amount,
+    0
+  );
+  
+  // Group expenses by category
+  const expensesByCategory = filteredExpenses.reduce((acc, expense) => {
+    const categoryId = expense.categoryId;
+    if (!acc[categoryId]) {
+      acc[categoryId] = 0;
+    }
+    acc[categoryId] += expense.amount;
+    return acc;
+  }, {} as Record<string, number>);
+  
+  // Prepare data for charts
+  const chartData = Object.entries(expensesByCategory).map(([categoryId, amount]) => {
+    const category = categories.find(c => c.id === categoryId);
     return {
       name: category?.name || "Unknown",
-      value: item.amount,
-      categoryId: item.categoryId,
+      value: amount,
+      color: category?.color?.replace("bg-", "") || "gray-500",
     };
   });
   
-  // Get available years for selection
-  const availableYears = [...new Set(expenses.map(expense => 
-    new Date(expense.date).getFullYear()
-  ))].sort((a, b) => b - a); // Sort descending (most recent first)
+  // Sort chart data by value (highest first)
+  chartData.sort((a, b) => b.value - a.value);
   
-  if (availableYears.length === 0) {
-    availableYears.push(new Date().getFullYear());
-  }
+  // Group expenses by month (for trend analysis)
+  const last6Months = Array.from({ length: 6 }, (_, i) => {
+    const date = subMonths(now, i);
+    return {
+      month: format(date, "MMM"),
+      date: startOfMonth(date),
+    };
+  }).reverse();
+  
+  const expensesByMonth = last6Months.map(({ month, date }) => {
+    const monthStart = startOfMonth(date);
+    const monthEnd = endOfMonth(date);
+    
+    const monthlyTotal = expenses.filter(expense => {
+      const expenseDate = new Date(expense.date);
+      return expenseDate >= monthStart && expenseDate <= monthEnd;
+    }).reduce((sum, expense) => sum + expense.amount, 0);
+    
+    return {
+      name: month,
+      value: monthlyTotal,
+    };
+  });
   
   return (
     <Layout>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900 mb-1">Reports</h1>
-        <p className="text-gray-600">View detailed financial reports</p>
+        <h1 className="text-2xl font-bold text-gray-900 mb-1">Reports & Analytics</h1>
+        <p className="text-gray-600">Visualize your spending patterns</p>
       </div>
       
-      {/* Year selector */}
-      <div className="flex justify-end mb-6">
-        <select
-          value={selectedYear}
-          onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-          className="border rounded p-2"
-        >
-          {availableYears.map(year => (
-            <option key={year} value={year}>{year}</option>
-          ))}
-        </select>
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-6">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Expenses</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{formatCurrency(totalExpenses)}</div>
+            <p className="text-xs text-muted-foreground">
+              For selected period
+            </p>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Top Category</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {chartData.length > 0 ? chartData[0].name : "N/A"}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {chartData.length > 0 ? formatCurrency(chartData[0].value) : "No data"}
+            </p>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Categories</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{Object.keys(expensesByCategory).length}</div>
+            <p className="text-xs text-muted-foreground">
+              With expenses in period
+            </p>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Avg. per Month</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {formatCurrency(totalExpenses / (timeframe === "1month" ? 1 : 
+                timeframe === "3months" ? 3 : 
+                timeframe === "6months" ? 6 : 12))}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              For selected period
+            </p>
+          </CardContent>
+        </Card>
       </div>
       
-      <Tabs defaultValue="overview">
-        <TabsList className="mb-6">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="categories">Categories</TabsTrigger>
-          <TabsTrigger value="monthly">Monthly Trends</TabsTrigger>
-        </TabsList>
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mb-6">
+        <Card className="col-span-2">
+          <CardHeader>
+            <CardTitle>Expense Trend</CardTitle>
+            <CardDescription>Your spending over the last 6 months</CardDescription>
+          </CardHeader>
+          <CardContent className="h-80">
+            {expensesByMonth.length > 0 ? (
+              <div className="h-full w-full">
+                {/* Placeholder for chart - would use a real chart library */}
+                <div className="h-full w-full flex items-end justify-between">
+                  {expensesByMonth.map((month, i) => (
+                    <div key={i} className="flex flex-col items-center">
+                      <div 
+                        className="bg-primary w-12 rounded-t-md" 
+                        style={{ 
+                          height: `${Math.max(
+                            5, 
+                            (month.value / Math.max(...expensesByMonth.map(m => m.value))) * 200
+                          )}px` 
+                        }}
+                      ></div>
+                      <span className="text-xs mt-2">{month.name}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {formatCurrency(month.value)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="h-full flex items-center justify-center">
+                <p className="text-muted-foreground">No data available</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
         
-        <TabsContent value="overview">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Total Spending in {selectedYear}</CardTitle>
-                <CardDescription>Summary of your spending</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold">{formatCurrency(totalSpending)}</div>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardHeader>
-                <CardTitle>Spending Distribution</CardTitle>
-                <CardDescription>by category</CardDescription>
-              </CardHeader>
-              <CardContent className="h-64">
-                {pieChartData.length > 0 ? (
-                  <ChartContainer 
-                    config={chartConfig}
-                    className="h-full"
-                  >
-                    <PieChart width={300} height={240}>
-                      <Pie
-                        data={pieChartData}
-                        cx="50%"
-                        cy="50%"
-                        outerRadius={80}
-                        fill="#8884d8"
-                        dataKey="value"
-                        nameKey="name"
-                        labelLine={false}
-                      >
-                        {pieChartData.map((entry, index) => {
-                          const category = getCategoryById(entry.categoryId);
-                          return (
-                            <Cell 
-                              key={`cell-${index}`} 
-                              fill={category?.color ? 
-                                category.color.replace('bg-', '').startsWith('#') ? 
-                                  category.color.replace('bg-', '') : 
-                                  `var(--${category.color.replace('bg-', '')})` : 
-                                '#ccc'
-                              } 
-                            />
-                          );
-                        })}
-                      </Pie>
-                      <Tooltip formatter={(value) => formatCurrency(value as number)} />
-                      <ChartLegend layout="horizontal" verticalAlign="bottom" align="center" />
-                    </PieChart>
-                  </ChartContainer>
-                ) : (
-                  <div className="flex items-center justify-center h-full">
-                    <p className="text-gray-500">No spending data available</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-          
-          <Card>
-            <CardHeader>
-              <CardTitle>Monthly Spending Trend</CardTitle>
-              <CardDescription>Spending over the months</CardDescription>
-            </CardHeader>
-            <CardContent className="h-72">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart
-                  data={monthlySpending}
-                  margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="month" />
-                  <YAxis />
-                  <Tooltip formatter={(value) => formatCurrency(value as number)} />
-                  <Area 
-                    type="monotone" 
-                    dataKey="amount" 
-                    stroke="var(--budget-purple-500)" 
-                    fill="var(--budget-purple-200)" 
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-        </TabsContent>
-        
-        <TabsContent value="categories">
-          <Card>
-            <CardHeader>
-              <CardTitle>Category Breakdown</CardTitle>
-              <CardDescription>Detailed spending by category</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {categorySpending.length > 0 ? (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Category</TableHead>
-                      <TableHead>Amount</TableHead>
-                      <TableHead>Percentage</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {categorySpending
-                      .sort((a, b) => b.amount - a.amount)
-                      .map((item) => {
-                        const category = getCategoryById(item.categoryId);
-                        
+        <Card>
+          <CardHeader className="space-y-0 pb-2">
+            <CardTitle>Expenses by Category</CardTitle>
+            <CardDescription>
+              <div className="flex items-center justify-between mt-2">
+                <Select value={timeframe} onValueChange={setTimeframe}>
+                  <SelectTrigger className="w-[120px]">
+                    <SelectValue placeholder="Timeframe" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1month">1 Month</SelectItem>
+                    <SelectItem value="3months">3 Months</SelectItem>
+                    <SelectItem value="6months">6 Months</SelectItem>
+                    <SelectItem value="12months">12 Months</SelectItem>
+                  </SelectContent>
+                </Select>
+                
+                <Select value={chartType} onValueChange={setChartType}>
+                  <SelectTrigger className="w-[100px]">
+                    <SelectValue placeholder="Chart Type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pie">Pie</SelectItem>
+                    <SelectItem value="bar">Bar</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="h-80">
+            {chartData.length > 0 ? (
+              <div className="h-full w-full">
+                {chartType === "pie" ? (
+                  <div className="h-full w-full flex items-center justify-center">
+                    {/* Placeholder for pie chart */}
+                    <div className="relative h-40 w-40 rounded-full bg-gray-100">
+                      {chartData.map((item, index, arr) => {
+                        const total = arr.reduce((sum, i) => sum + i.value, 0);
+                        const percentage = (item.value / total) * 100;
                         return (
-                          <TableRow key={item.categoryId}>
-                            <TableCell>
-                              <div className="flex items-center">
-                                <span className={`w-3 h-3 rounded-full mr-2 ${category?.color}`} />
-                                <span>{category?.name || "Unknown"}</span>
-                              </div>
-                            </TableCell>
-                            <TableCell>{formatCurrency(item.amount)}</TableCell>
-                            <TableCell>{formatPercentage(item.percentage)}</TableCell>
-                          </TableRow>
+                          <div 
+                            key={index}
+                            className={`absolute inset-0 bg-${item.color}`}
+                            style={{
+                              clipPath: `polygon(50% 50%, 50% 0, ${50 + 50 * Math.cos(index * 2 * Math.PI / arr.length)}% ${50 - 50 * Math.sin(index * 2 * Math.PI / arr.length)}%, ${50 + 50 * Math.cos((index + 1) * 2 * Math.PI / arr.length)}% ${50 - 50 * Math.sin((index + 1) * 2 * Math.PI / arr.length)}%)`
+                            }}
+                          ></div>
                         );
                       })}
-                  </TableBody>
-                </Table>
-              ) : (
-                <div className="text-center py-10">
-                  <p className="text-gray-500">No spending data available</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-        
-        <TabsContent value="monthly">
-          <Card>
-            <CardHeader>
-              <CardTitle>Monthly Spending</CardTitle>
-              <CardDescription>Spending by month</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="h-80">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    data={monthlySpending}
-                    margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="month" />
-                    <YAxis />
-                    <Tooltip formatter={(value) => formatCurrency(value as number)} />
-                    <Bar
-                      dataKey="amount"
-                      fill="var(--budget-purple-500)"
-                      radius={[4, 4, 0, 0]}
-                    />
-                  </BarChart>
-                </ResponsiveContainer>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="h-full w-full flex flex-col justify-end">
+                    {/* Placeholder for bar chart */}
+                    <div className="h-full flex items-end space-x-2">
+                      {chartData.slice(0, 5).map((item, i) => (
+                        <div key={i} className="flex flex-col items-center flex-1">
+                          <div 
+                            className={`w-full bg-${item.color} rounded-t-sm`} 
+                            style={{ 
+                              height: `${Math.max(
+                                10, 
+                                (item.value / Math.max(...chartData.map(d => d.value))) * 200
+                              )}px` 
+                            }}
+                          ></div>
+                          <span className="text-xs mt-2 truncate w-full text-center">
+                            {item.name}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            {formatCurrency(item.value)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
-              <Table className="mt-6">
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Month</TableHead>
-                    <TableHead className="text-right">Amount</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {monthlySpending.map((item) => (
-                    <TableRow key={item.month}>
-                      <TableCell>{item.month}</TableCell>
-                      <TableCell className="text-right">{formatCurrency(item.amount)}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+            ) : (
+              <div className="h-full flex items-center justify-center">
+                <p className="text-muted-foreground">No data available</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+      
+      <Card>
+        <CardHeader>
+          <CardTitle>Expense Breakdown</CardTitle>
+          <CardDescription>Detailed view of your spending by category</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {chartData.length > 0 ? (
+              chartData.map((item, i) => (
+                <div key={i} className="flex items-center">
+                  <div className={`w-3 h-3 rounded-full bg-${item.color} mr-2`} />
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between">
+                      <span>{item.name}</span>
+                      <span className="font-medium">{formatCurrency(item.value)}</span>
+                    </div>
+                    <div className="w-full h-2 bg-gray-100 rounded-full mt-1">
+                      <div 
+                        className={`h-full bg-${item.color} rounded-full`}
+                        style={{ 
+                          width: `${(item.value / totalExpenses) * 100}%` 
+                        }}
+                      ></div>
+                    </div>
+                    <div className="flex items-center justify-between text-xs text-muted-foreground mt-1">
+                      <span>{((item.value / totalExpenses) * 100).toFixed(1)}%</span>
+                    </div>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <p className="text-muted-foreground">No data available</p>
+            )}
+          </div>
+        </CardContent>
+      </Card>
     </Layout>
   );
 }

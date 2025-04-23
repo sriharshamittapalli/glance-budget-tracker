@@ -42,7 +42,7 @@ export default function ExpensesPage() {
   const [isConfirmDeleteOpen, setIsConfirmDeleteOpen] = useState(false);
   const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("all");
   
   const { getAll: getAllExpenses, add: addExpense, update: updateExpense, remove: deleteExpense } = useExpenseStore();
   const { getAll: getAllCategories } = useCategoryStore();
@@ -61,7 +61,7 @@ export default function ExpensesPage() {
   // Filter expenses based on search and category
   const filteredExpenses = expenses.filter(expense => {
     const matchesSearch = expense.description.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = categoryFilter ? expense.categoryId === categoryFilter : true;
+    const matchesCategory = categoryFilter === "all" ? true : expense.categoryId === categoryFilter;
     return matchesSearch && matchesCategory;
   });
   
@@ -148,7 +148,7 @@ export default function ExpensesPage() {
               <SelectValue placeholder="Filter by category" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All Categories</SelectItem>
+              <SelectItem value="all">All Categories</SelectItem>
               {categories.map((category) => (
                 <SelectItem key={category.id} value={category.id}>
                   <div className="flex items-center">
