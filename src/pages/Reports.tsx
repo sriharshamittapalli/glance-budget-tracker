@@ -217,7 +217,7 @@ export default function ReportsPage() {
             <CardTitle>Expenses by Category</CardTitle>
             <CardDescription>
               <div className="flex items-center justify-between mt-2">
-                <Select value={timeframe} onValueChange={setTimeframe}>
+                <Select value={timeframe || "3months"} onValueChange={setTimeframe}>
                   <SelectTrigger className="w-[120px]">
                     <SelectValue placeholder="Timeframe" />
                   </SelectTrigger>
@@ -229,7 +229,7 @@ export default function ReportsPage() {
                   </SelectContent>
                 </Select>
                 
-                <Select value={chartType} onValueChange={setChartType}>
+                <Select value={chartType || "pie"} onValueChange={setChartType}>
                   <SelectTrigger className="w-[100px]">
                     <SelectValue placeholder="Chart Type" />
                   </SelectTrigger>

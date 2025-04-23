@@ -1,4 +1,3 @@
-
 import React from "react";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -103,7 +102,8 @@ export default function BudgetForm({
                   <FormLabel>Category</FormLabel>
                   <Select
                     onValueChange={field.onChange}
-                    defaultValue={field.value}
+                    defaultValue={field.value || undefined}
+                    value={field.value || undefined}
                   >
                     <FormControl>
                       <SelectTrigger>

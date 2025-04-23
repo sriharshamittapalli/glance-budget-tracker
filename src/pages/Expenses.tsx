@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { format } from "date-fns";
 import { Pencil, Trash2, Plus, Search } from "lucide-react";
@@ -47,35 +46,29 @@ export default function ExpensesPage() {
   const { getAll: getAllExpenses, add: addExpense, update: updateExpense, remove: deleteExpense } = useExpenseStore();
   const { getAll: getAllCategories } = useCategoryStore();
   
-  // Load initial data
   useEffect(() => {
     loadExpenses();
     setCategories(getAllCategories());
   }, []);
   
-  // Reload expenses when changes are made
   const loadExpenses = () => {
     setExpenses(getAllExpenses());
   };
   
-  // Filter expenses based on search and category
   const filteredExpenses = expenses.filter(expense => {
     const matchesSearch = expense.description.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = categoryFilter === "all" ? true : expense.categoryId === categoryFilter;
     return matchesSearch && matchesCategory;
   });
   
-  // Sort expenses by date (newest first)
   const sortedExpenses = [...filteredExpenses].sort((a, b) => 
     new Date(b.date).getTime() - new Date(a.date).getTime()
   );
   
-  // Find category by ID
   const getCategoryById = (categoryId: string) => {
     return categories.find(category => category.id === categoryId);
   };
   
-  // Handle adding a new expense
   const handleAddExpense = (data: any) => {
     addExpense({
       description: data.description,
@@ -86,13 +79,11 @@ export default function ExpensesPage() {
     loadExpenses();
   };
   
-  // Handle editing an expense
   const handleEditExpense = (expense: Expense) => {
     setSelectedExpense(expense);
     setIsAddExpenseOpen(true);
   };
   
-  // Handle saving edited expense
   const handleSaveEditedExpense = (data: any) => {
     if (selectedExpense) {
       updateExpense({
@@ -107,13 +98,11 @@ export default function ExpensesPage() {
     }
   };
   
-  // Handle confirming deletion
   const handleConfirmDelete = (expense: Expense) => {
     setSelectedExpense(expense);
     setIsConfirmDeleteOpen(true);
   };
   
-  // Handle actual deletion
   const handleDeleteExpense = () => {
     if (selectedExpense) {
       deleteExpense(selectedExpense.id);
@@ -130,7 +119,6 @@ export default function ExpensesPage() {
         <p className="text-gray-600">Track and manage your expenses</p>
       </div>
       
-      {/* Filters and controls */}
       <div className="bg-white rounded-lg shadow-sm p-4 mb-6">
         <div className="flex flex-col md:flex-row gap-4">
           <div className="relative w-full md:w-1/2">
@@ -143,7 +131,7 @@ export default function ExpensesPage() {
             />
           </div>
           
-          <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+          <Select value={categoryFilter !== "" ? categoryFilter : "all"} onValueChange={setCategoryFilter}>
             <SelectTrigger className="w-full md:w-1/4">
               <SelectValue placeholder="Filter by category" />
             </SelectTrigger>
@@ -167,7 +155,6 @@ export default function ExpensesPage() {
         </div>
       </div>
       
-      {/* Expenses Table */}
       <div className="bg-white rounded-lg shadow-sm overflow-hidden">
         {sortedExpenses.length > 0 ? (
           <Table>
@@ -233,7 +220,6 @@ export default function ExpensesPage() {
         )}
       </div>
       
-      {/* Add/Edit Expense Dialog */}
       <ExpenseForm
         open={isAddExpenseOpen}
         onClose={() => {
@@ -254,7 +240,6 @@ export default function ExpensesPage() {
         title={selectedExpense ? "Edit Expense" : "Add Expense"}
       />
       
-      {/* Confirm Delete Dialog */}
       <Dialog open={isConfirmDeleteOpen} onOpenChange={setIsConfirmDeleteOpen}>
         <DialogContent>
           <DialogHeader>
