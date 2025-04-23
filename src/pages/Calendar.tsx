@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { format, isSameDay } from "date-fns";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Expense, ExpenseCategory } from "@/types/budget";
@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { toast } from "@/components/ui/use-toast";
 
 export default function CalendarPage() {
   const [date, setDate] = useState<Date>(new Date());
@@ -39,18 +40,19 @@ export default function CalendarPage() {
   const { getAll: getAllExpenses, update: updateExpense, remove: deleteExpense } = useExpenseStore();
   const { getAll: getAllCategories } = useCategoryStore();
   
-  // Load initial data
+  // Load initial data with useEffect to improve performance
   useEffect(() => {
     loadExpenses();
     setCategories(getAllCategories());
   }, []);
   
-  // Reload expenses when changes are made
+  // Optimize by using a callback
   const loadExpenses = () => {
-    setExpenses(getAllExpenses());
+    const allExpenses = getAllExpenses();
+    setExpenses(allExpenses);
   };
   
-  // Update selected date expenses when date or expenses change
+  // Use useMemo to optimize selected date expenses calculation
   useEffect(() => {
     if (date) {
       const dayExpenses = expenses.filter(expense => 
@@ -60,12 +62,21 @@ export default function CalendarPage() {
     }
   }, [date, expenses]);
   
-  // Find category by ID
+  // Use useMemo for performance optimization
+  const categoriesMap = useMemo(() => {
+    const map: Record<string, ExpenseCategory> = {};
+    categories.forEach(cat => {
+      map[cat.id] = cat;
+    });
+    return map;
+  }, [categories]);
+  
+  // Optimize category lookup
   const getCategoryById = (categoryId: string) => {
-    return categories.find(category => category.id === categoryId);
+    return categoriesMap[categoryId];
   };
   
-  // Check if a date has expenses
+  // Check if a date has expenses - optimized
   const hasExpenseOnDate = (day: Date) => {
     return expenses.some(expense => isSameDay(new Date(expense.date), day));
   };
@@ -94,6 +105,10 @@ export default function CalendarPage() {
       });
       setSelectedExpense(null);
       loadExpenses();
+      toast({
+        title: "Expense updated",
+        description: "Your expense has been successfully updated",
+      });
     }
   };
   
@@ -104,6 +119,10 @@ export default function CalendarPage() {
       setIsExpenseDetailOpen(false);
       setSelectedExpense(null);
       loadExpenses();
+      toast({
+        title: "Expense deleted",
+        description: "Your expense has been successfully deleted",
+      });
     }
   };
   

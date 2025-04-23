@@ -1,9 +1,9 @@
+
 import React from "react";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { ExpenseCategory } from "@/types/budget";
-import { formatCurrency } from "@/utils/formatters";
 import { useCategoryStore } from "@/api/store";
 
 import { Button } from "@/components/ui/button";
@@ -83,6 +83,21 @@ export default function BudgetForm({
     onClose();
   };
 
+  // Using React.useMemo to optimize rendering performance
+  const categoriesOptions = React.useMemo(() => 
+    categories.map((category: ExpenseCategory) => (
+      <SelectItem key={category.id} value={category.id}>
+        <div className="flex items-center">
+          <span
+            className={`w-3 h-3 rounded-full mr-2 ${category.color}`}
+          />
+          <span>{category.name}</span>
+        </div>
+      </SelectItem>
+    )),
+    [categories]
+  );
+
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[425px]">
@@ -111,16 +126,7 @@ export default function BudgetForm({
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {categories.map((category: ExpenseCategory) => (
-                        <SelectItem key={category.id} value={category.id}>
-                          <div className="flex items-center">
-                            <span
-                              className={`w-3 h-3 rounded-full mr-2 ${category.color}`}
-                            />
-                            <span>{category.name}</span>
-                          </div>
-                        </SelectItem>
-                      ))}
+                      {categoriesOptions}
                     </SelectContent>
                   </Select>
                   <FormMessage />
